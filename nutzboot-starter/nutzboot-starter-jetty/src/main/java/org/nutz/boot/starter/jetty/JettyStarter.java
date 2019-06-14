@@ -5,8 +5,6 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.zip.Deflater;
@@ -36,6 +34,7 @@ import org.nutz.boot.starter.servlet3.AbstractServletContainerStarter;
 import org.nutz.boot.starter.servlet3.NbServletContextListener;
 import org.nutz.ioc.loader.annotation.IocBean;
 import org.nutz.lang.Lang;
+import org.nutz.lang.Strings;
 import org.nutz.log.Log;
 import org.nutz.log.Logs;
 import org.nutz.resource.Scans;
@@ -70,6 +69,9 @@ public class JettyStarter extends AbstractServletContainerStarter implements Ser
 
     @PropDoc(value = "表单最大尺寸", defaultValue = "1gb", type = "int")
     public static final String PROP_MAX_FORM_CONTENT_SIZE = PRE + "maxFormContentSize";
+
+    @PropDoc(value = "表单最大key数量", defaultValue = "1000", type = "int")
+    public static final String PROP_MAX_FORM_KEYS = PRE + "maxFormKeys";
 
     @PropDoc(value = "Session空闲时间,单位分钟", defaultValue = "30", type = "int")
     public static final String PROP_SESSION_TIMEOUT = "web.session.timeout";
@@ -136,6 +138,8 @@ public class JettyStarter extends AbstractServletContainerStarter implements Ser
 
     public void start() throws Exception {
         server.start();
+        if (log.isDebugEnabled())
+            log.debug("Jetty monitor props:\r\n"+getMonitorForPrint());
     }
 
     public void stop() throws Exception {
@@ -168,6 +172,10 @@ public class JettyStarter extends AbstractServletContainerStarter implements Ser
         connector.setIdleTimeout(getIdleTimeout());
         server.addConnector(connector);
 
+        updateMonitorValue("http.port", connector.getPort());
+        updateMonitorValue("http.host", connector.getHost());
+        updateMonitorValue("http.idleTimeout", connector.getIdleTimeout());
+
         // 看看Https设置
         int httpsPort = conf.getInt(PROP_HTTPS_PORT);
         if (httpsPort > 0) {
@@ -190,6 +198,14 @@ public class JettyStarter extends AbstractServletContainerStarter implements Ser
             httpsConnector.setHost(getHost());
             httpsConnector.setIdleTimeout(getIdleTimeout());
             server.addConnector(httpsConnector);
+            
+            updateMonitorValue("https.enable", true);
+            updateMonitorValue("https.port", httpsConnector.getPort());
+            updateMonitorValue("https.host", httpsConnector.getHost());
+            updateMonitorValue("https.idleTimeout", httpsConnector.getIdleTimeout());
+        }
+        else {
+            updateMonitorValue("https.enable", false);
         }
         
         
@@ -221,6 +237,9 @@ public class JettyStarter extends AbstractServletContainerStarter implements Ser
             while (urls.hasMoreElements()) {
                 resources.add(Resource.newResource(urls.nextElement()));
             }
+        }
+        if (resources.isEmpty()) {
+            resources.add(Resource.newClassPathResource("META-INF/jetty_resources"));
         }
         if (conf.has(PROP_STATIC_PATH_LOCAL)) {
             File f = new File(conf.get(PROP_STATIC_PATH_LOCAL));
@@ -271,8 +290,12 @@ public class JettyStarter extends AbstractServletContainerStarter implements Ser
         wac.setWelcomeFiles(getWelcomeFiles());
         wac.setInitParameter("org.eclipse.jetty.servlet.Default.dirAllowed", "false");
 
+        updateMonitorValue("welcome_files", Strings.join(",", wac.getWelcomeFiles()));
+
         // 设置一下额外的东西
         server.setAttribute("org.eclipse.jetty.server.Request.maxFormContentSize", getMaxFormContentSize());
+        updateMonitorValue("maxFormContentSize", server.getAttribute("org.eclipse.jetty.server.Request.maxFormContentSize"));
+        server.setAttribute("org.eclipse.jetty.server.Request.maxFormKeys", getMaxFormKeys());
         server.setDumpAfterStart(false);
         server.setDumpBeforeStop(false);
         server.setStopAtShutdown(true);
@@ -293,6 +316,10 @@ public class JettyStarter extends AbstractServletContainerStarter implements Ser
 
     public int getMaxFormContentSize() {
         return conf.getInt(PROP_MAX_FORM_CONTENT_SIZE, 1024 * 1024 * 1024);
+    }
+    
+    public int getMaxFormKeys() {
+        return conf.getInt(PROP_MAX_FORM_KEYS, 1000);
     }
 
     public int getIdleTimeout() {
@@ -315,27 +342,7 @@ public class JettyStarter extends AbstractServletContainerStarter implements Ser
         return PRE;
     }
 
-    public boolean isMonitorEnable() {
-        return true;
-    }
-
     public String getMonitorName() {
         return "jetty";
-    }
-    
-    public Collection<String> getMonitorKeys() {
-        return Arrays.asList("port", "contextPath", "host");
-    }
-
-    public Object getMonitorValue(String key) {
-        switch (key) {
-        case "port":
-            return connector.getPort();
-        case "host":
-            return connector.getHost();
-        case "contextPath":
-            return getContextPath();
-        }
-        return null;
     }
 }

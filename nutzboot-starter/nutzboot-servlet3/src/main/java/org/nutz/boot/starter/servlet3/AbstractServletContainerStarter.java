@@ -2,23 +2,23 @@ package org.nutz.boot.starter.servlet3;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.nutz.boot.AppContext;
-import org.nutz.boot.aware.AppContextAware;
 import org.nutz.boot.aware.ClassLoaderAware;
-import org.nutz.boot.aware.IocAware;
 import org.nutz.ioc.Ioc;
 import org.nutz.ioc.impl.PropertiesProxy;
 import org.nutz.ioc.loader.annotation.Inject;
 import org.nutz.lang.Strings;
 import org.nutz.lang.util.LifeCycle;
+import org.nutz.lang.util.NutMap;
 import org.nutz.log.Log;
 import org.nutz.log.Logs;
 
-public abstract class AbstractServletContainerStarter implements ClassLoaderAware, IocAware, AppContextAware, LifeCycle {
+public abstract class AbstractServletContainerStarter implements ClassLoaderAware, LifeCycle {
 
     private static final Log log = Logs.get();
 
@@ -26,8 +26,14 @@ public abstract class AbstractServletContainerStarter implements ClassLoaderAwar
     protected PropertiesProxy conf;
 
     protected ClassLoader classLoader;
+
+    @Inject("refer:$ioc")
     protected Ioc ioc;
+
+    @Inject
     protected AppContext appContext;
+
+    protected NutMap monitorProps = new NutMap();
 
     protected abstract String getConfigurePrefix();
 
@@ -39,9 +45,10 @@ public abstract class AbstractServletContainerStarter implements ClassLoaderAwar
         this.classLoader = classLoader;
     }
 
-    @Override
     public void setAppContext(AppContext appContext) {
         this.appContext = appContext;
+        if (this.classLoader == null)
+            this.classLoader = this.appContext.getClassLoader();
     }
 
     // --getConf---
@@ -110,5 +117,17 @@ public abstract class AbstractServletContainerStarter implements ClassLoaderAwar
                 files.add(file);
         }
         return files.toArray(new String[files.size()]);
+    }
+    
+    public Collection<String> getMonitorKeys() {
+        return monitorProps.keySet();
+    }
+
+    public Object getMonitorValue(String key) {
+        return monitorProps.get(key);
+    }
+    
+    public void updateMonitorValue(String key, Object value) {
+        monitorProps.put(key, value);
     }
 }

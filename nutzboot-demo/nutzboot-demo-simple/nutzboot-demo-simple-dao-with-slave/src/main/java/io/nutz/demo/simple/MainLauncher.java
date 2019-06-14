@@ -27,7 +27,7 @@ public class MainLauncher {
     }
 
     public static void main(String[] args) throws Exception {
-        new NbApp().setPrintProcDoc(true).run();
+        new NbApp().run();
     }
 
 }
